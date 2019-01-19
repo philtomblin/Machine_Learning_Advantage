@@ -65,11 +65,32 @@ namespace ml_csharp_lesson4
         /// <returns>The neural network to use</returns>
         public static CNTK.Function CreateNetwork()
         {
-            // ***********************************
-            // ADD YOUR NETWORK CREATION CODE HERE
-            // ***********************************
+            // build features and labels
+            features = NetUtil.Var(new int[] { 13 }, DataType.Float);
+            labels = NetUtil.Var(new int[] { 1 }, DataType.Float);
 
-            return null; // return the finished network here!
+            // build the network
+            var network = features
+                .Dense(64, CNTKLib.ReLU)
+                .Dense(64, CNTKLib.ReLU)
+                .Dense(1)
+                .ToNetwork();
+
+            // set up the loss function and the classification error function
+            var lossFunc = NetUtil.MeanSquaredError(network.Output, labels);
+            var errorFunc = NetUtil.MeanAbsoluteError(network.Output, labels);
+
+            // use the Adam learning algorithm
+            var learner = network.GetAdamLearner(
+                learningRateSchedule: (0.001, 1),
+                momentumSchedule: (0.9, 1),
+                unitGain: true);
+
+            // set up a trainer and an evaluator
+            trainer = network.GetTrainer(learner, lossFunc, errorFunc);
+            evaluator = network.GetEvaluator(errorFunc);
+
+            return network;
         }
 
         /// <summary>
@@ -79,9 +100,94 @@ namespace ml_csharp_lesson4
         [STAThread]
         public static void Main(string[] args)
         {
-            // ****************************
-            // ADD YOUR REMAINING CODE HERE
-            // ****************************
+            // unzip archive
+            if (!System.IO.File.Exists("x_train.bin"))
+            {
+                DataUtil.Unzip(@"..\..\..\..\..\boston_housing.zip", ".");
+            }
+
+            // load training and test data
+            var training_data = DataUtil.LoadBinary<float>("x_train.bin", 404, 13);
+            var test_data = DataUtil.LoadBinary<float>("x_test.bin", 102, 13);
+            var training_labels = DataUtil.LoadBinary<float>("y_train.bin", 404);
+            var test_labels = DataUtil.LoadBinary<float>("y_test.bin", 102);
+
+            // declare some variables
+            var numFolds = 4;
+            var maxEpochs = 50;
+            var batchSize = 16;
+            var batchCount = 0;
+
+            // partition the training data using KFolds
+            var lines = new List<List<double>>();
+            training_data.Index().Shuffle().KFold(numFolds, (foldIndex, trainingIndices, validationIndices) =>
+            {
+                var line = new List<double>();
+                var network = CreateNetwork();
+                for (int epoch = 0; epoch < maxEpochs; epoch++)
+                {
+                    // train the network using batches
+                    var trainingError = 0.0;
+                    batchCount = 0;
+                    trainingIndices.Batch(batchSize, (indices, begin, end) =>
+                    {
+                        var featureBatch = features.GetBatch(training_data, indices, begin, end);
+                        var labelBatch = labels.GetBatch(training_labels, indices, begin, end);
+                        var result = trainer.TrainBatch(
+                            new[] {
+                                (features, featureBatch),
+                                (labels,  labelBatch)
+                            },
+                            false
+                        );
+                        trainingError += result.Evaluation;
+                        batchCount++;
+                    });
+                    trainingError /= batchCount;
+
+                    // test the network using batches
+                    var validationError = 0.0;
+                    batchCount = 0;
+                    validationIndices.Batch(batchSize, (data, begin, end) =>
+                    {
+                        var featureBatch = features.GetBatch(test_data, begin, end);
+                        var labelBatch = labels.GetBatch(test_labels, begin, end);
+                        validationError += evaluator.TestBatch(
+                            new[] {
+                                (features, featureBatch),
+                                (labels,  labelBatch)
+                            }
+                        );
+                        batchCount++;
+                    });
+                    validationError /= batchCount;
+
+                    // show results
+                    if (epoch % 10 == 9)
+                        Console.WriteLine($"Epoch {epoch + 1}/{maxEpochs}... training error: {trainingError}, validation error: {validationError}");
+
+                    // add validation error to list
+                    line.Add(validationError);
+                }
+                lines.Add(line);
+            });
+
+            // calculate and plot the average error over all folds
+            var averageError = (from i in Enumerable.Range(0, maxEpochs)
+                                select (from j in Enumerable.Range(0, lines.Count())
+                                        select lines[j][i]).Average()).ToList();
+
+            /*
+            // plot the KFold training curves
+            var app = new System.Windows.Application();
+            app.Run(new Plot("Mean Absolute Validation Error Per KFold", lines));
+            */
+
+            // plot the average curve over all k-folds
+            var app = new System.Windows.Application();
+            lines.Clear();
+            lines.Add(averageError);
+            app.Run(new Plot("Mean Absolute Validation Error For All KFolds", lines));
 
             Console.ReadLine();
         }

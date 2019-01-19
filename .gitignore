@@ -249,3 +249,11 @@ ModelManifest.xml
 /Mobile/1Presentation/Axon.Mobile.Android/Resources/drawable/im_button_test2.xml
 /Mobile/1Presentation/Axon.Mobile.Android/Resources/drawable/im_button_test.png
 /.project
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Data and media files
+catsanddogs.zip
+*.mp4

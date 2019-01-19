@@ -1,4 +1,5 @@
-﻿using Microsoft.ProjectOxford.Face;
+﻿using ExtensionMethods;
+using Microsoft.ProjectOxford.Face;
 using Microsoft.ProjectOxford.Face.Contract;
 using Microsoft.Win32;
 using System;
@@ -6,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,8 +25,8 @@ namespace ml_csharp_lesson1
         // **********************************
         // PUT YOUR FACE API KEY AND URL HERE
         // **********************************
-        private const string FACE_KEY = "...";
-        private const string FACE_API = "...";
+        private const string FACE_KEY = "1de90ec2e6b648b3ad905981455e08c0";
+        private const string FACE_API = "https://uksouth.api.cognitive.microsoft.com/face/v1.0";
 
         /// <summary>
         /// The celebrity image to analyze. 
@@ -80,11 +82,25 @@ namespace ml_csharp_lesson1
         /// <returns>An array of Face instances describing each face in the image.</returns>
         private async Task<Face[]> DetectFaces(BitmapImage image)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // write the image to a stream
+            var stream = new MemoryStream();
+            var encoder = new JpegBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(image));
+            encoder.Save(stream);
+            stream.Seek(0, SeekOrigin.Begin);
 
-            return new Face[] { }; // replace this when done!
+            // detect faces
+            var faceClient = new FaceServiceClient(FACE_KEY, FACE_API);
+            var attributes = new FaceAttributeType[] {
+                FaceAttributeType.Age,
+                FaceAttributeType.Accessories,
+                FaceAttributeType.Emotion,
+                FaceAttributeType.FacialHair,
+                FaceAttributeType.Gender,
+                FaceAttributeType.Glasses,
+                FaceAttributeType.Hair,
+                FaceAttributeType.Makeup };
+            return await faceClient.DetectAsync(stream, true, false, attributes);
         }
 
         /// <summary>
@@ -93,26 +109,40 @@ namespace ml_csharp_lesson1
         /// <param name="face">The face to draw the rectangle for.</param>
         private void DrawFaceRectangle(Face face)
         {
-            // calculate scaling factor - ONLY WORKS FOR LANDSCAPE IMAGES
-            var scaleX = MainCanvas.ActualWidth / image.PixelWidth;
-            var scaleY = 1; // MainCanvas.ActualHeight / image.PixelHeight;
+            double scale;
+            
+            if ((image.PixelWidth / MainCanvas.ActualWidth) < (image.PixelHeight / MainCanvas.ActualHeight))
+                scale = MainCanvas.ActualHeight / image.PixelHeight; // height is limiting factor
+            else
+                scale = MainCanvas.ActualWidth / image.PixelWidth; // width is limiting factor
 
-            // *************************
-            // CHANGE THE FOLLOWING CODE
-            // *************************
+            // select colour based on gender
+            Color colour;
+            switch (face.FaceAttributes.Gender)
+            {
+                case "female":
+                    colour = Color.FromRgb(255, 16, 150);
+                    break;
+                case "male":
+                    colour = Color.FromRgb(0, 0, 255);
+                    break;
+                default:
+                    colour = Color.FromRgb(255, 255, 255);
+                    break;
+            }
 
             // create face rectangle
             var rectangle = new System.Windows.Shapes.Rectangle
             {
-                Stroke = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                Stroke = new SolidColorBrush(colour),
                 Fill = new SolidColorBrush(Color.FromArgb(0, 255, 255, 255)),
                 StrokeThickness = 2,
-                Width = face.FaceRectangle.Width * scaleX,
-                Height = face.FaceRectangle.Height * scaleY,
+                Width = face.FaceRectangle.Width * scale,
+                Height = face.FaceRectangle.Height * scale,
                 Tag = face.FaceId
             };
-            Canvas.SetLeft(rectangle, face.FaceRectangle.Left * scaleX);
-            Canvas.SetTop(rectangle, face.FaceRectangle.Top * scaleY);
+            Canvas.SetLeft(rectangle, face.FaceRectangle.Left * scale);
+            Canvas.SetTop(rectangle, face.FaceRectangle.Top * scale);
 
             // add hover effect
             rectangle.MouseEnter += (sender, e) => {
@@ -137,10 +167,12 @@ namespace ml_csharp_lesson1
             string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             path = Path.Combine(path, "EllenSelfie.jpg");
             image = new BitmapImage(new Uri(path));
-            var brush = new ImageBrush(image);
-            brush.Stretch = Stretch.UniformToFill;
-            brush.AlignmentX = AlignmentX.Left;
-            brush.AlignmentY = AlignmentY.Top;
+            var brush = new ImageBrush(image)
+            {
+                Stretch = Stretch.Uniform,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top
+            };
             MainCanvas.Background = brush;
         }
 
@@ -161,9 +193,67 @@ namespace ml_csharp_lesson1
         /// <param name="e">The event arguments.</param>
         private void Rectangle_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // helper method to convert Glasses value to string
+            string glassesToString(Glasses glasses)
+            {
+                switch (glasses)
+                {
+                    case Microsoft.ProjectOxford.Face.Contract.Glasses.NoGlasses:
+                        return "None";
+                    case Microsoft.ProjectOxford.Face.Contract.Glasses.Sunglasses:
+                        return "Sunglasses";
+                    case Microsoft.ProjectOxford.Face.Contract.Glasses.ReadingGlasses:
+                        return "Reading Glasses";
+                    case Microsoft.ProjectOxford.Face.Contract.Glasses.SwimmingGoggles:
+                        return "Swimming Goggles";
+                    default:
+                        return "None";
+                }
+            };
+
+            // helper method to convert Glasses value to string
+            string accessoriesToString(Accessory[] accessories)
+            {
+                var sb = new StringBuilder();
+
+                foreach (var accessory in accessories)
+                    switch (accessory.Type)
+                    {
+                        case AccessoryType.Headwear:
+                            sb.Append(", Hat");
+                            break;
+                        case AccessoryType.Glasses:
+                            sb.Append(", Glasses");
+                            break;
+                        case AccessoryType.Mask:
+                            sb.Append(", Mask");
+                            break;
+                        default:
+                            break;
+                    }
+                
+                if (sb.Length > 0)
+                    sb.Remove(0, 2);
+
+                return sb.ToString();
+            };
+
+            var rectangle = (System.Windows.Shapes.Rectangle)sender;
+            var face = faces.FirstOrDefault(f => f.FaceId == (Guid)rectangle.Tag);
+
+            if (face != null)
+            {
+                Gender.Content = $"Gender: {face.FaceAttributes.Gender.ToTitle()}";
+                Age.Content = $"Age: {face.FaceAttributes.Age}";
+                Emotion.Content = $"Emotion: {face.FaceAttributes.Emotion.ToRankedList().First().Key.ToTitle()}";
+                Hair.Content = $"Hair: {face.FaceAttributes.Hair.HairColor.OrderByDescending(hc => hc.Confidence).FirstOrDefault()?.Color.ToString().ToTitle()}";
+                Beard.Content = $"Beard: {face.FaceAttributes.FacialHair.Beard * 100}%";
+                Moustache.Content = $"Moustache: {face.FaceAttributes.FacialHair.Moustache * 100}%";
+                Glasses.Content = $"Glasses: {glassesToString(face.FaceAttributes.Glasses)}";
+                EyeMakeup.Content = $"Eye Makeup: {(face.FaceAttributes.Makeup.EyeMakeup ? "Yes" : "No")}";
+                LipMakeup.Content = $"Lip Makeup: {(face.FaceAttributes.Makeup.LipMakeup ? "Yes" : "No")}";
+                Accessories.Content = $"Accessories: {accessoriesToString(face.FaceAttributes.Accessories)}";
+            }
         }
 
         /// <summary>
@@ -180,15 +270,16 @@ namespace ml_csharp_lesson1
                 image = new BitmapImage(new Uri(openFileDialog.FileName));
 
                 // set the new background image
-                var brush = new ImageBrush(image);
-                brush.Stretch = Stretch.UniformToFill;
-                brush.AlignmentX = AlignmentX.Left;
-                brush.AlignmentY = AlignmentY.Top;
+                var brush = new ImageBrush(image)
+                {
+                    Stretch = Stretch.Uniform,
+                    AlignmentX = AlignmentX.Left,
+                    AlignmentY = AlignmentY.Top
+                };
                 MainCanvas.Background = brush;
 
                 // run face detection on new image
                 await RunFaceDetection();
-
             }
         }
     }

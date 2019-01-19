@@ -70,9 +70,9 @@ namespace lesson_5
         // *******************************************
 
         // LUIS API credentials
-        private const string LUIS_KEY = "...";
-        private const string LUIS_API = "...";
-        private const string LUIS_ID = "...";
+        private const string LUIS_KEY = "b92a55e85a6a4a4e92cb09663d02b0a6";
+        private const string LUIS_API = "https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/4218f950-07f7-453b-be1d-f80589484ab0?verbose=true&timezoneOffset=-360&subscription-key=b92a55e85a6a4a4e92cb09663d02b0a6&q=";
+        private const string LUIS_ID = "4218f950-07f7-453b-be1d-f80589484ab0";
 
         /// <summary>
         /// The main calendar.
@@ -88,12 +88,19 @@ namespace lesson_5
         /// <param name="guest">The guest to meet.</param>
         private static void AddToCalendar(string subject, string location, string date, string guest)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // add the meeting to the calendar
+            var item = new CalendarItem()
+            {
+                Subject = subject,
+                Location = location,
+                DateTime = date,
+                Guest = guest
+            };
+            calendar.Add(item);
 
-            // remove this line when done
-            Console.WriteLine("Sorry, adding appointments is not implemented yet.");
+            // notify user
+            Console.WriteLine("Okay Phil, I've added the following meeting to your calendar:");
+            Console.WriteLine(item);
         }
 
         /// <summary>
@@ -105,12 +112,20 @@ namespace lesson_5
         /// <param name="guest">The guest to meet.</param>
         private static void DeleteFromCalendar(string subject, string location, string date, string guest)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // delete the meeting from the calendar
+            var appointments = calendar.Where(
+                a => (subject == null || a.Subject == subject)
+                && (location == null || a.Location == location)
+                && (date == null || a.DateTime == date)
+                && (guest == null || a.Guest == guest));
 
-            // remove this line when done
-            Console.WriteLine("Sorry, deleting appointments is not implemented yet.");
+            if (appointments.Count() == 0)
+                Console.WriteLine("Sorry Phil, I couldn't find a matching appointment in your calendar.");
+            else
+            {
+                Console.WriteLine($"Okay Phil, I've removed the following appointment from your calendar:\r\n{appointments.First()}");
+                calendar.Remove(appointments.First());
+            }
         }
 
         /// <summary>
@@ -122,12 +137,18 @@ namespace lesson_5
         /// <param name="guest">The guest to meet.</param>
         private static void EditCalendar(string subject, string location, string date, string guest)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // find the specified appointment
+            var appointments = calendar.Where(a => a.Subject == subject);
 
-            // remove this line when done
-            Console.WriteLine("Sorry, editing appointments is not implemented yet.");
+            // reschedule the appointment
+            if (appointments.Count() > 0)
+            {
+                var appointment = appointments.First();
+                appointment.Reschedule(date);
+                Console.WriteLine($"Okay Phil, I've rescheduled [{appointment.Subject}] to {date}");
+            }
+            else
+                Console.WriteLine("Sorry Phil, I could not find any matching appointments.");
         }
 
         /// <summary>
@@ -139,12 +160,18 @@ namespace lesson_5
         /// <param name="guest">The guest to meet.</param>
         private static void FindInCalendar(string subject, string location, string date, string guest)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // find the specified appointment
+            var appointments = calendar.Where(
+                a => (subject == null || a.Subject == subject)
+                && (location == null || a.Location == location)
+                && (date == null || a.DateTime == date)
+                && (guest == null || a.Guest == guest));
 
-            // remove this line when done
-            Console.WriteLine("Sorry, searching for appointments is not implemented yet.");
+            // notify user
+            if (appointments.Count() > 0)
+                Console.WriteLine($"Phil, I found the following appointment in your calendar:\r\n{appointments.First()}");
+            else
+                Console.WriteLine("Sorry Phil, I could not find any matching appointments.");
         }
 
         /// <summary>
@@ -153,12 +180,17 @@ namespace lesson_5
         /// <param name="guest">The guest to meet.</param>
         private static void CheckAvailability(string guest)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
-            // remove this line when done
-            Console.WriteLine("Sorry, checking for availability is not implemented yet.");
+            // find all appointments for the guest
+            var existingAppointmentTimes = calendar.Where(a => a.Guest == guest).Select(a => a.DateTime);
+            
+            // show results
+            if (existingAppointmentTimes.Count() > 0)
+            {
+                string str = string.Join(", ", existingAppointmentTimes);
+                Console.WriteLine($"{guest} is available all week, except {str}");
+            }
+            else
+                Console.WriteLine($"{guest} is available all week");
         }
 
         /// <summary>
@@ -174,7 +206,7 @@ namespace lesson_5
             };
 
             // start the query loop
-            Console.WriteLine("Hi Mark, how can I help you?");
+            Console.WriteLine("Hi Phil, how can I help you?");
             Console.WriteLine("(you can type 'exit' at any time to leave this conversation)");
             while (true)
             {
@@ -186,9 +218,51 @@ namespace lesson_5
                 if (query.ToLower() == "exit")
                     return;
 
-                // ******************
-                // ADD YOUR CODE HERE
-                // ******************
+                // call the language model and get a prediction
+                var result = client.Prediction.ResolveAsync(LUIS_ID, query).Result;
+
+                // get the meeting subject
+                var subject = (from e in result.Entities
+                               where e.Type == "Calendar.Subject"
+                               select e.Entity).FirstOrDefault();
+
+                // get the meeting location
+                var location = (from e in result.Entities
+                                where e.Type == "Calendar.Location"
+                                select e.Entity).FirstOrDefault();
+
+                // get the date and time of the meeting
+                var date = (from e in result.Entities
+                            where e.Type.StartsWith("builtin.datetimeV2")
+                            select e.Entity).FirstOrDefault();
+
+                // get the guest to meet
+                var guest = (from e in result.Entities
+                             where e.Type == "builtin.personName"
+                             select e.Entity).FirstOrDefault();
+
+                // handle intent
+                switch (result.TopScoringIntent.Intent)
+                {
+                    case "Calendar.Add":
+                        AddToCalendar(subject, location, date, guest);
+                        break;
+                    case "Calendar.Delete":
+                        DeleteFromCalendar(subject, location, date, guest);
+                        break;
+                    case "Calendar.Edit":
+                        EditCalendar(subject, location, date, guest);
+                        break;
+                    case "Calendar.Find":
+                        FindInCalendar(subject, location, date, guest);
+                        break;
+                    case "Calendar.CheckAvailability":
+                        CheckAvailability(guest);
+                        break;
+                    default:
+                        Console.WriteLine("I'm sorry, I didn't get that.");
+                        break;
+                }
             }
         }
     }

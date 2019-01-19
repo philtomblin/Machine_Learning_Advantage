@@ -74,10 +74,49 @@ namespace ml_csharp_lesson4
             var validation = housing.Rows[Enumerable.Range(12000, 2500)];
             var test = housing.Rows[Enumerable.Range(14500, 2500)];
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // set up model columns
+            var columns = (from i in Enumerable.Range(32, 10)
+                           select $"latitude {i}-{i + 1}").ToList();
+            columns.Add("median_income");
+            columns.Add("rooms_per_person");
 
+            // train the model
+            var learner = new OrdinaryLeastSquares();
+            var regression = learner.Learn(
+                training.Columns[columns].ToArray2D<double>().ToJagged(),  // features
+                training["median_house_value"].Values.ToArray());          // labels
+
+            // display training results
+            Console.WriteLine("TRAINING RESULTS");
+            Console.WriteLine($"Weights:     {regression.Weights.ToString<double>("0.00")}");
+            Console.WriteLine($"Intercept:   {regression.Intercept}");
+            Console.WriteLine();
+
+            // validate the model
+            var validation_predictions = regression.Transform(
+                validation.Columns[columns].ToArray2D<double>().ToJagged());
+
+            // display validation results
+            var validation_labels = validation["median_house_value"].Values.ToArray();
+            var validation_rmse = Math.Sqrt(new SquareLoss(validation_labels).Loss(validation_predictions));
+            var validation_range = Math.Abs(validation_labels.Max() - validation_labels.Min());
+            Console.WriteLine("VALIDATION RESULTS");
+            Console.WriteLine($"Label range: {validation_range}");
+            Console.WriteLine($"RMSE:        {validation_rmse:0.00} ({validation_rmse / validation_range * 100:0.00}%)");
+            Console.WriteLine();
+
+            // test the model
+            var test_predictions = regression.Transform(
+                test.Columns[columns].ToArray2D<double>().ToJagged());
+
+            // display validation results
+            var test_labels = test["median_house_value"].Values.ToArray();
+            var test_rmse = Math.Sqrt(new SquareLoss(test_labels).Loss(test_predictions));
+            var test_range = Math.Abs(test_labels.Max() - test_labels.Min());
+            Console.WriteLine("TEST RESULTS");
+            Console.WriteLine($"Label range: {test_range}");
+            Console.WriteLine($"RMSE:        {test_rmse:0.00} ({test_rmse / test_range * 100:0.00}%)");
+                       
             Console.ReadLine();
         }
     }

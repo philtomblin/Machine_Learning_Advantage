@@ -37,6 +37,11 @@
             this.label1 = new System.Windows.Forms.Label();
             this.headBox = new System.Windows.Forms.PictureBox();
             this.eyeBox = new System.Windows.Forms.PictureBox();
+            this.leftEyeEAR = new System.Windows.Forms.TextBox();
+            this.rightEyeEAR = new System.Windows.Forms.TextBox();
+            this.rotUpDown = new System.Windows.Forms.TextBox();
+            this.rotLeftRight = new System.Windows.Forms.TextBox();
+            this.rotRotation = new System.Windows.Forms.TextBox();
             ((System.ComponentModel.ISupportInitialize)(this.carBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.headBox)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.eyeBox)).BeginInit();
@@ -120,12 +125,62 @@
             this.eyeBox.TabIndex = 21;
             this.eyeBox.TabStop = false;
             // 
+            // leftEyeEAR
+            // 
+            this.leftEyeEAR.Font = new System.Drawing.Font("Microsoft Sans Serif", 20F);
+            this.leftEyeEAR.Location = new System.Drawing.Point(66, 1228);
+            this.leftEyeEAR.Name = "leftEyeEAR";
+            this.leftEyeEAR.Size = new System.Drawing.Size(172, 68);
+            this.leftEyeEAR.TabIndex = 22;
+            this.leftEyeEAR.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // rightEyeEAR
+            // 
+            this.rightEyeEAR.Font = new System.Drawing.Font("Microsoft Sans Serif", 20F);
+            this.rightEyeEAR.Location = new System.Drawing.Point(308, 1228);
+            this.rightEyeEAR.Name = "rightEyeEAR";
+            this.rightEyeEAR.Size = new System.Drawing.Size(172, 68);
+            this.rightEyeEAR.TabIndex = 23;
+            this.rightEyeEAR.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // rotUpDown
+            // 
+            this.rotUpDown.Font = new System.Drawing.Font("Microsoft Sans Serif", 20F);
+            this.rotUpDown.Location = new System.Drawing.Point(572, 1228);
+            this.rotUpDown.Name = "rotUpDown";
+            this.rotUpDown.Size = new System.Drawing.Size(172, 68);
+            this.rotUpDown.TabIndex = 24;
+            this.rotUpDown.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // rotLeftRight
+            // 
+            this.rotLeftRight.Font = new System.Drawing.Font("Microsoft Sans Serif", 20F);
+            this.rotLeftRight.Location = new System.Drawing.Point(754, 1228);
+            this.rotLeftRight.Name = "rotLeftRight";
+            this.rotLeftRight.Size = new System.Drawing.Size(172, 68);
+            this.rotLeftRight.TabIndex = 25;
+            this.rotLeftRight.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // rotRotation
+            // 
+            this.rotRotation.Font = new System.Drawing.Font("Microsoft Sans Serif", 20F);
+            this.rotRotation.Location = new System.Drawing.Point(935, 1228);
+            this.rotRotation.Name = "rotRotation";
+            this.rotRotation.Size = new System.Drawing.Size(172, 68);
+            this.rotRotation.TabIndex = 26;
+            this.rotRotation.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.AutoSize = true;
-            this.ClientSize = new System.Drawing.Size(1121, 1224);
+            this.ClientSize = new System.Drawing.Size(1121, 1318);
+            this.Controls.Add(this.rotRotation);
+            this.Controls.Add(this.rotLeftRight);
+            this.Controls.Add(this.rotUpDown);
+            this.Controls.Add(this.rightEyeEAR);
+            this.Controls.Add(this.leftEyeEAR);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.autopilotLabel);
             this.Controls.Add(this.label3);
@@ -156,6 +211,11 @@
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.PictureBox headBox;
         private System.Windows.Forms.PictureBox eyeBox;
+        private System.Windows.Forms.TextBox leftEyeEAR;
+        private System.Windows.Forms.TextBox rightEyeEAR;
+        private System.Windows.Forms.TextBox rotUpDown;
+        private System.Windows.Forms.TextBox rotLeftRight;
+        private System.Windows.Forms.TextBox rotRotation;
     }
 }
 

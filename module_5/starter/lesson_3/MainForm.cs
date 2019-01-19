@@ -7,6 +7,8 @@ using DlibDotNet;
 using DlibDotNet.Extensions;
 using OpenCvSharp;
 using System.Drawing;
+using System.Collections.Generic;
+using Accord.Math;
 
 namespace ml_csharp_lesson3
 {
@@ -42,6 +44,12 @@ namespace ml_csharp_lesson3
         /// </summary>
         protected int frameIndex = 0;
 
+        public double leftEAR = 0;
+        public double rightEAR = 0;
+        public double rotationUD = 0;
+        public double rotationLR = 0;
+        public double rotationRot = 0;
+
         /// <summary>
         /// Initialize MainForm.
         /// </summary>
@@ -58,11 +66,26 @@ namespace ml_csharp_lesson3
         /// <returns>A FullObjectDetection object containing all 68 facial landmark points</returns>
         private FullObjectDetection DetectLandmarks(Bitmap image, int frameIndex)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // convert image to dlib format
+            var dlibImage = image.ToArray2D<RgbPixel>();
 
-            return null; // replace this when done!
+            // detect faces every 5 frames
+            if (frameIndex % 5 == 0)
+            {
+                var faces = faceDetector.Detect(dlibImage);
+                if (faces.Length > 0)
+                {
+                    // grab the first face
+                    currentFace = faces.First();
+                }
+            }
+
+            // detect all 68 facial landmarks on the face
+            if (currentFace != default(DlibDotNet.Rectangle))
+            {
+                return shapePredictor.Detect(dlibImage, currentFace);
+            }
+            return null;
         }
 
         /// <summary>
@@ -72,11 +95,36 @@ namespace ml_csharp_lesson3
         /// <returns>The surface area of both eyes.</returns>
         private bool AreEyesOpen(FullObjectDetection shape)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // get all landmark points of the left eye
+            var leftEye = from i in Enumerable.Range(36, 6)
+                          let p = shape.GetPart((uint)i)
+                          select new OpenCvSharp.Point(p.X, p.Y);
 
-            return true; // replace this when done!
+            // get all landmark points of the right eye
+            var rightEye = from i in Enumerable.Range(42, 6)
+                           let p = shape.GetPart((uint)i)
+                           select new OpenCvSharp.Point(p.X, p.Y);
+
+            leftEAR = eyeAspectRatio(leftEye);
+            rightEAR = eyeAspectRatio(rightEye);
+
+            return leftEAR > 0.25 || rightEAR > 0.25;
+        }
+
+        private double eyeAspectRatio(IEnumerable<OpenCvSharp.Point> eye)
+        {
+            var v1 = Distance.Euclidean(getPointCoords(eye.ElementAt(1)), getPointCoords(eye.ElementAt(5)));
+            var v2 = Distance.Euclidean(getPointCoords(eye.ElementAt(2)), getPointCoords(eye.ElementAt(4)));
+            var h = Distance.Euclidean(getPointCoords(eye.ElementAt(0)), getPointCoords(eye.ElementAt(3)));
+
+            // compute EAR
+            double ear = (v1 + v2) / (2.0 * h);
+            return ear;
+        }
+
+        private double[] getPointCoords(OpenCvSharp.Point point)
+        {
+            return new double[] { point.X, point.Y };
         }
 
         /// <summary>
@@ -86,11 +134,19 @@ namespace ml_csharp_lesson3
         /// <returns>True if the driver is facing forward, false if not.</returns>
         private bool IsDriverFacingForward(MatOfDouble headRotation)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // calculate head rotation in degrees
+            var leftRight = 180 * headRotation.At<double>(0, 2) / Math.PI;
+            var upDown = 180 * headRotation.At<double>(0, 1) / Math.PI;
+            var rotation = 180 * headRotation.At<double>(0, 0) / Math.PI;
 
-            return true; // replace this when done!
+            // looking straight ahead wraps at -180/180, so make the range smooth
+            upDown = Math.Sign(upDown) * 180 - upDown;
+
+            rotationLR = leftRight;
+            rotationUD = upDown;
+            rotationRot = rotation;
+
+            return Math.Abs(leftRight) < 35 && upDown > -15 && upDown < 5;
         }
 
         /// <summary>
@@ -215,9 +271,14 @@ namespace ml_csharp_lesson3
 
             // is the driver facing forward?
             var isFacingForward = IsDriverFacingForward(headRotation);
+            rotUpDown.Text = rotationUD.ToString();
+            rotLeftRight.Text = rotationLR.ToString();
+            rotRotation.Text = rotationRot.ToString();
 
             // are the drivers' eyes open? 
             var areEyesOpen = AreEyesOpen(landmarkPoints);
+            leftEyeEAR.Text = leftEAR.ToString();
+            rightEyeEAR.Text = rightEAR.ToString();
 
             // show the autopilot disengage warning if the driver is alert
             autopilotLabel.Visible = !(isFacingForward && areEyesOpen);

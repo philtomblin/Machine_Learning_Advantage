@@ -5,6 +5,8 @@ using System.Linq;
 using System.Windows.Forms;
 using Accord.Imaging.Filters;
 using Accord.Imaging;
+using System.Collections.Generic;
+using Accord.Math.Geometry;
 
 namespace ml_csharp_lesson1
 {
@@ -82,7 +84,7 @@ namespace ml_csharp_lesson1
                 {
                     var pen = new Pen(color)
                     {
-                        Width = 4f
+                        Width = 2f
                     };
                     g.DrawLine(pen, rect.X, rect.Y, rect.X + rect.Width, rect.Y);
                     g.DrawLine(pen, rect.X, rect.Y, rect.X, rect.Y + rect.Height);
@@ -99,11 +101,74 @@ namespace ml_csharp_lesson1
         /// <returns>A Rectangle[] array of found traffic signs</returns>
         private Rectangle[] FindTrafficSigns(Bitmap bitmap)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // convert the image to grayscale
+            var grayFrame = Grayscale.CommonAlgorithms.BT709.Apply(bitmap);
 
-            return new Rectangle[] { };  // replace this!
+            // use a sobel edge detector to find color edges
+            var edgeDetector = new SobelEdgeDetector();
+            var edgeFrame = edgeDetector.Apply(grayFrame);
+
+            // threshold the edges
+            var thresholdConverter = new Threshold(230);
+            thresholdConverter.ApplyInPlace(edgeFrame);
+
+            // show the thresholded image in the pip window
+            edgeBox.Image = (Bitmap)edgeFrame.Clone();
+
+            // use a blobcounter to find all shapes
+            //var blobsFilter = new BlobsFilter();
+            var detector = new BlobCounter()
+            {
+                FilterBlobs = true,
+                CoupledSizeFiltering = false,
+                //BlobsFilter = blobsFilter,
+                MinWidth = 8,
+                MinHeight = 8,
+                MaxWidth = 200,
+                MaxHeight = 200
+            };
+            detector.ProcessImage(edgeFrame);
+            var blobs = detector.GetObjectsInformation();
+
+            // Limit the search to the right-hand verge and overhead
+            var verge = new Rectangle(
+                (int)(edgeFrame.Width * 0.5),
+                (int)(edgeFrame.Height * 0.35),
+                (int)(edgeFrame.Width * 0.5),
+                (int)(edgeFrame.Height * 0.4));
+
+            var overhead = new Rectangle(
+                (int)(edgeFrame.Width * 0.1),
+                (int)(edgeFrame.Height * 0.05),
+                (int)(edgeFrame.Width * 0.8),
+                (int)(edgeFrame.Height * 0.6));
+
+            // plot the search rectangles on the image
+            DrawRectangles(new Rectangle[] { verge, overhead }, bitmap, Color.Red);
+
+            // filter out objects outside the search rectangles and the wrong shape
+            var matchesInSearchArea = blobs.Where(blob => verge.Contains(blob.Rectangle) || overhead.Contains(blob.Rectangle));
+
+            // filter down based on shapes - we only want rectangular blobs
+            var shapeChecker = new SimpleShapeChecker();
+            var rectangleMatches = matchesInSearchArea.Where(blob => shapeChecker.IsQuadrilateral(detector.GetBlobsEdgePoints(blob)));
+
+            // filter down based on colour
+            var colourMatches = new List<Blob>();
+            var colourDetector = new BlobCounter();
+            colourDetector.ProcessImage(bitmap);
+            foreach (var blob in rectangleMatches)
+            {
+                var newBlob = new Blob(blob);
+                colourDetector.ExtractBlobsImage(bitmap, newBlob, false);
+                if (newBlob.ColorMean != Color.Black)
+                    colourMatches.Add(newBlob);
+            }
+            //var colourMatches = rectangleMatches.Where(blob => blob.ColorMean != Color.Black);
+
+            // build a list of all matches
+            return (from shape in matchesInSearchArea
+                    select shape.Rectangle).ToArray();
         }
     }
 }

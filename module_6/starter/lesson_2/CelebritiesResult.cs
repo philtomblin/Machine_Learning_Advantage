@@ -1,4 +1,4 @@
-﻿using Microsoft.ProjectOxford.Vision.Contract;
+﻿using Microsoft.Azure.CognitiveServices.Vision.Face.Models;
 
 namespace ml_csharp_lesson2
 {

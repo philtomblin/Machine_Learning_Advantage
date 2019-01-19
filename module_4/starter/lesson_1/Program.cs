@@ -33,16 +33,18 @@ namespace ml_csharp_lesson1
             // build features and labels
             var features = NetUtil.Var(new int[] { 28, 28, 1 }, DataType.Float);
             var labels = NetUtil.Var(new int[] { 10 }, DataType.Float);
-
-
-
-            // *****************************************
-            // PUT CODE HERE TO BUILD THE NEURAL NETWORK
-            // *****************************************
-            var network = features.ToNetwork(); // change this!
-
-
-
+            
+            // build the network
+            var network = features
+                .Convolution2D(32, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Convolution2D(64, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Convolution2D(64, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Dense(64, CNTKLib.ReLU)
+                .Dense(10, CNTKLib.Softmax)
+                .ToNetwork();
+            
             // print the network to the console
             Console.WriteLine("Neural Network architecture: ");
             Console.WriteLine(network.ToSummary());
@@ -61,7 +63,7 @@ namespace ml_csharp_lesson1
             var evaluator = network.GetEvaluator(errorFunc);
 
             // declare some variables
-            var maxEpochs = 5;
+            var maxEpochs = 10;
             var batchSize = 64;
             var loss = 0.0;
             var error = 0.0;

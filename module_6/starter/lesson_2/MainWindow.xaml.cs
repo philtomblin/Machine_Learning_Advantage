@@ -1,6 +1,7 @@
 ﻿using Microsoft.Azure.CognitiveServices.Search.EntitySearch;
 using Microsoft.Azure.CognitiveServices.Search.EntitySearch.Models;
-using Microsoft.ProjectOxford.Vision;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 using Microsoft.Win32;
 using Newtonsoft.Json;
 using System;
@@ -26,16 +27,16 @@ namespace ml_csharp_lesson2
         // ************************************
 
         // Vision API credentials
-        private const string VISION_KEY = "...";
-        private const string VISION_API = "...";
+        private const string VISION_KEY = "ec137465a84540b5b4a9bf13c4625b30";
+        private const string VISION_API = "https://uksouth.api.cognitive.microsoft.com/";
 
         // ************************************************
         // PUT YOUR BING ENTITY SEARCH API KEY AND URL HERE
         // ************************************************
 
         // Bing Entity Search API credentials
-        private const string ENTITY_KEY = "...";
-        private const string ENTITY_API = "...";
+        private const string ENTITY_KEY = "400cb02c1d6b43dabb48c02e17fd1cef";
+        private const string ENTITY_API = "https://westeurope.api.cognitive.microsoft.com/";
 
         /// <summary>
         /// The celebrity image to analyze. 
@@ -96,11 +97,20 @@ namespace ml_csharp_lesson2
         /// <returns>An AnalysisResult instance that describes each celebrity in the image.</returns>
         private async Task<Celebrity[]> DetectCelebrities(BitmapImage image)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            DomainModelResults analysisResult;
 
-            return new Celebrity[] { }; // remove this when you're done!
+            using (Stream imageFileStream = File.OpenRead(image.UriSource.LocalPath))
+            {
+
+                // analyze image and look for celebrities
+                var credentials = new Microsoft.Azure.CognitiveServices.Vision.ComputerVision.ApiKeyServiceClientCredentials(VISION_KEY);
+                var visionClient = new ComputerVisionClient(credentials) { Endpoint = VISION_API };
+                analysisResult = await visionClient.AnalyzeImageByDomainInStreamAsync("celebrities", imageFileStream);
+            }
+                        
+            // cast result to c# class
+            var celebritiesResults = JsonConvert.DeserializeObject<CelebritiesResult>(analysisResult.Result.ToString());
+            return celebritiesResults.Celebrities;
         }
 
         /// <summary>
@@ -109,9 +119,12 @@ namespace ml_csharp_lesson2
         /// <param name="celebrity">The celebrity to draw the rectangle for.</param>
         private void DrawFaceRectangle(Celebrity celebrity)
         {
-            // calculate scaling factor - ONLY WORKS FOR LANDSCAPE IMAGES
-            var scaleX = MainCanvas.ActualWidth / image.PixelWidth;
-            var scaleY = MainCanvas.ActualHeight / image.PixelHeight;
+            double scale;
+
+            if ((image.PixelWidth / MainCanvas.ActualWidth) < (image.PixelHeight / MainCanvas.ActualHeight))
+                scale = MainCanvas.ActualHeight / image.PixelHeight; // height is limiting factor
+            else
+                scale = MainCanvas.ActualWidth / image.PixelWidth; // width is limiting factor
 
             // create face rectangle
             var rectangle = new System.Windows.Shapes.Rectangle
@@ -119,12 +132,12 @@ namespace ml_csharp_lesson2
                 Stroke = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 255, 0)),
                 Fill = new SolidColorBrush(System.Windows.Media.Color.FromArgb(0, 255, 255, 255)),
                 StrokeThickness = 2,
-                Width = celebrity.FaceRectangle.Width * scaleX,
-                Height = celebrity.FaceRectangle.Height * scaleY,
+                Width = celebrity.FaceRectangle.Width * scale,
+                Height = celebrity.FaceRectangle.Height * scale,
                 Tag = celebrity.Name
             };
-            Canvas.SetLeft(rectangle, celebrity.FaceRectangle.Left * scaleX);
-            Canvas.SetTop(rectangle, celebrity.FaceRectangle.Top * scaleY);
+            Canvas.SetLeft(rectangle, celebrity.FaceRectangle.Left * scale);
+            Canvas.SetTop(rectangle, celebrity.FaceRectangle.Top * scale);
 
             // add handlers
             rectangle.MouseEnter += (sender, e) => {
@@ -135,10 +148,17 @@ namespace ml_csharp_lesson2
 
             MainCanvas.Children.Add(rectangle);
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
+            // create celebrity label
+            var label = new Label()
+            {
+                Content = celebrity.Name,
+                Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 255, 0)),
+                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 0, 0)),
+                FontSize = 12
+            };
+            Canvas.SetLeft(label, celebrity.FaceRectangle.Left * scale);
+            Canvas.SetTop(label, (celebrity.FaceRectangle.Top + celebrity.FaceRectangle.Height) * scale);
+            MainCanvas.Children.Add(label);
         }
 
         /// <summary>
@@ -148,7 +168,7 @@ namespace ml_csharp_lesson2
         /// <returns>The description of the celebrity.</returns>
         private async Task<Thing> EntitySearch(Celebrity celebrity)
         {
-            var client = new EntitySearchAPI(new ApiKeyServiceClientCredentials(ENTITY_KEY));
+            var client = new EntitySearchClient(new Microsoft.Azure.CognitiveServices.Search.EntitySearch.ApiKeyServiceClientCredentials(ENTITY_KEY));
             var data = await client.Entities.SearchAsync(query: celebrity.Name);
             if (data?.Entities?.Value?.Count > 0)
             {
@@ -171,10 +191,12 @@ namespace ml_csharp_lesson2
             string path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             path = Path.Combine(path, "EllenSelfie.jpg");
             image = new BitmapImage(new Uri(path));
-            var brush = new ImageBrush(image);
-            brush.Stretch = Stretch.Uniform;
-            brush.AlignmentX = AlignmentX.Left;
-            brush.AlignmentY = AlignmentY.Top;
+            var brush = new ImageBrush(image)
+            {
+                Stretch = Stretch.Uniform,
+                AlignmentX = AlignmentX.Left,
+                AlignmentY = AlignmentY.Top
+            };
             MainCanvas.Background = brush;
         }
 
@@ -201,9 +223,24 @@ namespace ml_csharp_lesson2
             // remove any existing image
             FaceImage.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 0, 0));
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // find the celebrity relating to the selected rectangle
+            var rectangle = (System.Windows.Shapes.Rectangle)sender;
+            var celebrity = celebrities.FirstOrDefault(c => c.Name == (string)rectangle.Tag);
+
+            // perform the search and populate the info
+            var info = await EntitySearch(celebrity);
+            if (info != null)
+            {
+                Description.Text = info.Description;
+
+                // show the thumbnail image
+                var thumbnail = new BitmapImage(new Uri(info.Image.ThumbnailUrl));
+                var brush = new ImageBrush(thumbnail)
+                {
+                    Stretch = Stretch.Uniform
+                };
+                FaceImage.Background = brush;
+            }
 
             // stop the secondary spinner
             Spinner2.Visibility = Visibility.Hidden;
@@ -223,10 +260,12 @@ namespace ml_csharp_lesson2
                 image = new BitmapImage(new Uri(openFileDialog.FileName));
 
                 // set the new background image
-                var brush = new ImageBrush(image);
-                brush.Stretch = Stretch.Uniform;
-                brush.AlignmentX = AlignmentX.Left;
-                brush.AlignmentY = AlignmentY.Top;
+                var brush = new ImageBrush(image)
+                {
+                    Stretch = Stretch.Uniform,
+                    AlignmentX = AlignmentX.Left,
+                    AlignmentY = AlignmentY.Top
+                };
                 MainCanvas.Background = brush;
 
                 // run face detection on new image

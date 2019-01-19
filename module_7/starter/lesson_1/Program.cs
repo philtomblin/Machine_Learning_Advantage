@@ -74,11 +74,7 @@ namespace ml_csharp_lesson1
         /// <returns>The feature variable to use.</returns>
         protected override Variable CreateFeatureVariable()
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
-            return null; // remove this when you're done!
+            return NetUtil.Var(new[] { 500 }, DataType.Float);
         }
 
         /// <summary>
@@ -87,11 +83,7 @@ namespace ml_csharp_lesson1
         /// <returns>The label variable to use.</returns>
         protected override Variable CreateLabelVariable()
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
-            return null; // remove this when you're done!
+            return NetUtil.Var(new[] { 1 }, DataType.Float);
         }
 
         /// <summary>
@@ -101,11 +93,17 @@ namespace ml_csharp_lesson1
         /// <returns>The completed model to use.</returns>
         protected override Function CreateModel(Variable features)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
-            return null; // remove this when you're done!
+            // create neural network
+            return features
+                .OneHotOp(10000, true)
+                .Embedding(128)
+                .TransposeAxes(new CNTK.Axis(1), new CNTK.Axis(0))
+                .Convolution1D(32, 7, activation: CNTK.CNTKLib.ReLU)
+                .Pooling(PoolingType.Max, new int[] { 5 }, new int[] { 5 })
+                .Convolution1D(32, 7, activation: CNTK.CNTKLib.ReLU)
+                .Pooling(PoolingType.Max, CNTK.NDShape.Unknown(), new int[] { 5 })
+                .Dense(1, CNTKLib.Sigmoid)
+                .ToNetwork();
         }
     }
 
@@ -135,9 +133,30 @@ namespace ml_csharp_lesson1
             var testPartitionX = DataUtil.LoadBinary<float>("x_test_imdb.bin", 25000, 500);
             var testPartitionY = DataUtil.LoadBinary<float>("y_test_imdb.bin", 25000);
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // reserve the final 20% of training data for validation
+            var pivot = (int)(trainingPartitionX.Length * 0.8);
+            var trainingFeatures = trainingPartitionX.Skip(pivot).ToArray();
+            var trainingLabels = trainingPartitionY.Skip(pivot).ToArray();
+            var validationFeatures = trainingPartitionX.Take(pivot).ToArray();
+            var validationLabels = trainingPartitionY.Take(pivot).ToArray();
+
+            // set up a new training engine
+            var engine = new MyTrainingEngine()
+            {
+                NumberOfEpochs = 10,
+                BatchSize = 32,
+                LearningRate = 0.0001
+            };
+
+            // load the data into the engine
+            engine.SetData(trainingFeatures, trainingLabels, validationFeatures, validationLabels);
+
+            // start the training
+            engine.Train();
+
+            // plot the training and validation curves
+            var app = new System.Windows.Application();
+            app.Run(new Plot(engine.TrainingCurves));
 
             Console.ReadLine();
         }

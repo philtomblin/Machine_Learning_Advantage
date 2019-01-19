@@ -1,4 +1,5 @@
-﻿using Microsoft.ProjectOxford.Vision;
+﻿using Microsoft.Azure.CognitiveServices.Vision.ComputerVision;
+using Microsoft.Azure.CognitiveServices.Vision.ComputerVision.Models;
 using Microsoft.Win32;
 using System;
 using System.IO;
@@ -22,8 +23,8 @@ namespace ml_csharp_lesson3
         // ************************************
 
         // Vision API credentials
-        private const string VISION_KEY = "...";
-        private const string VISION_API = "...";
+        private const string VISION_KEY = "ec137465a84540b5b4a9bf13c4625b30";
+        private const string VISION_API = "https://uksouth.api.cognitive.microsoft.com/";
 
         /// <summary>
         /// The celebrity image to analyze. 
@@ -74,11 +75,21 @@ namespace ml_csharp_lesson3
         /// <returns>An AnalysisResult instance that describes what's in the image.</returns>
         private async Task<string> DetectScene(BitmapImage image)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            ImageDescription sceneCaptions;
 
-            return "I don't know what this is";  // replace this when done!
+            using (Stream imageFileStream = File.OpenRead(image.UriSource.LocalPath))
+            {
+
+                // analyze image and get a list of potential scenes
+                var credentials = new Microsoft.Azure.CognitiveServices.Vision.ComputerVision.ApiKeyServiceClientCredentials(VISION_KEY);
+                var visionClient = new ComputerVisionClient(credentials) { Endpoint = VISION_API };
+                //sceneResult = await visionClient.AnalyzeImageByDomainInStreamAsync("celebrities", imageFileStream);
+                sceneCaptions = await visionClient.DescribeImageInStreamAsync(imageFileStream);
+            }
+
+            // cast result to c# class
+            var sceneCaption = sceneCaptions.Captions.OrderByDescending(sc => sc.Confidence).FirstOrDefault().Text;
+            return $"You're looking at {sceneCaption}";
         }
 
         /// <summary>
@@ -87,9 +98,12 @@ namespace ml_csharp_lesson3
         /// <param name="description">The image description to speak.</param>
         private async Task SpeakDescription(string description)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // set up an adult female voice synthesizer
+            var synth = new System.Speech.Synthesis.SpeechSynthesizer();
+            synth.SelectVoiceByHints(VoiceGender.Female, VoiceAge.Adult);
+
+            // speak the description using the builtin synthesizer
+            await Task.Run(() => { synth.SpeakAsync(description); });
         }
 
         /// <summary>
@@ -117,6 +131,7 @@ namespace ml_csharp_lesson3
         /// <param name="e"></param>
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            //await Task.Delay(10000);
             await RunDetection();
         }
 

@@ -86,9 +86,55 @@ namespace ml_csharp_lesson1
             var validation = housing.Rows[Enumerable.Range(12000, 2500)];
             var test = housing.Rows[Enumerable.Range(14500, 2500)];
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // set up model columns
+            var columns = new string[] {
+                "latitude",
+                "longitude",
+                "housing_median_age",
+                "total_rooms",
+                "total_bedrooms",
+                "population",
+                "households",
+                "median_income" };
+
+            // build a neural network
+            var network = new ActivationNetwork(
+                new RectifiedLinearFunction(),  // the activation function
+                8,                              // number of input features
+                8,                              // hidden layer with 8 nodes
+                1);                             // output layer with 1 node
+
+            // set up a backpropagation learner
+            var learner = new ParallelResilientBackpropagationLearning(network);
+
+            // prep training feature and label arrays
+            var features = training.Columns[columns].ToArray2D<double>().ToJagged();
+            var labels = (from v in training["median_house_value"].Values
+                          select new double[] { v }).ToArray();
+
+            // prep validation feature and label arrays
+            var validation_features = validation.Columns[columns].ToArray2D<double>().ToJagged();
+            var validation_labels = (from v in validation["median_house_value"].Values
+                            select new double[] { v }).ToArray();
+
+            // randomize the network
+            new GaussianWeights(network, 0.1).Randomize();
+
+            // train the neural network
+            var errors = new List<double>();
+            var validation_errors = new List<double>();
+            for (var epoch = 0; epoch < 100; epoch++)
+            {
+                learner.RunEpoch(features, labels);
+                var rmse = Math.Sqrt(learner.ComputeError(features, labels) / labels.GetLength(0));
+                var validation_rmse = Math.Sqrt(learner.ComputeError(validation_features, validation_labels) / validation_labels.GetLength(0));
+                errors.Add(rmse);
+                validation_errors.Add(validation_rmse);
+                Console.WriteLine($"Epoch: {epoch}, Training RMSE: {rmse}, Validation RMSE: {validation_rmse}");
+            }
+
+            // plot the training and validation curves
+            Plot(errors, validation_errors, "Training and validation", "Epoch", "RMSE");
 
             Console.ReadLine();
         }

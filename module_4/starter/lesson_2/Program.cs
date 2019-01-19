@@ -120,9 +120,104 @@ namespace ml_csharp_lesson2
                 CreateMapFiles();
             }
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // get a training and validation image reader
+            var trainingReader = DataUtil.GetImageReader("train_map.txt", imageWidth, imageHeight, numChannels, 2, randomizeData: true, augmentData: true);
+            var validationReader = DataUtil.GetImageReader("validation_map.txt", imageWidth, imageHeight, numChannels, 2, randomizeData: false, augmentData: false);
+
+            // build features and labels
+            var features = NetUtil.Var(new int[] { imageHeight, imageWidth, numChannels }, DataType.Float);
+            var labels = NetUtil.Var(new int[] { 2 }, DataType.Float);
+
+            // build the network
+            var network = features
+                .MultiplyBy<float>(1.0f / 255.0f)  // divide all pixels by 255
+                .Convolution2D(32, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Convolution2D(64, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Convolution2D(128, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Convolution2D(128, new int[] { 3, 3 }, activation: CNTKLib.ReLU)
+                .Pooling(CNTK.PoolingType.Max, new int[] { 2, 2 }, new int[] { 2 })
+                .Dropout(0.5)
+                .Dense(512, CNTKLib.ReLU)
+                .Dense(2, CNTKLib.Softmax)
+                .ToNetwork();
+
+            // set up the loss function and the classification error function
+            var lossFunc = CNTKLib.CrossEntropyWithSoftmax(network.Output, labels);
+            var errorFunc = CNTKLib.ClassificationError(network.Output, labels);
+
+            // use the Adam learning algorithm
+            var learner = network.GetAdamLearner(
+                learningRateSchedule: (0.0001, 1),
+                momentumSchedule: (0.99, 1));
+
+            // set up a trainer and an evaluator
+            var trainer = network.GetTrainer(learner, lossFunc, errorFunc);
+            var evaluator = network.GetEvaluator(errorFunc);
+
+            // train and validate the network during many epochs 
+            var result = 0.0;
+            var sampleCount = 0;
+            var batchCount = 0;
+            var lines = new List<List<double>>() { new List<double>(), new List<double>() };
+            for (int epoch = 0; epoch < maxEpochs; epoch++)
+            {
+                Console.Write($"[{DateTime.Now:HH:mm:ss}] Training epoch {epoch + 1}/{maxEpochs}... ");
+
+                // train the network using random batches
+                result = 0.0;
+                sampleCount = 0;
+                batchCount = 0;
+                while (sampleCount < 2 * trainingSetSize)
+                {
+                    // train on the current batch
+                    var batch = trainingReader.GetBatch(batchSize);
+                    var featuresBatch = batch[trainingReader.StreamInfo("features")];
+                    var labelsBatch = batch[trainingReader.StreamInfo("labels")];
+                    var (Loss, Evaluation) = trainer.TrainBatch(
+                        new[] {
+                            (features, featuresBatch),
+                            (labels,  labelsBatch)
+                        }
+                    );
+                    result += Evaluation;
+                    sampleCount += (int)featuresBatch.numberOfSamples;
+                    batchCount++;
+                }
+
+                var accuracy = 1 - result / batchCount;
+                lines[0].Add(accuracy);
+                Console.Write($"training accuracy: {accuracy}, ");
+
+                // validate the network using random batches
+                result = 0.0;
+                sampleCount = 0;
+                batchCount = 0;
+                while (sampleCount < 2 * validationSetSize)
+                {
+                    // validate on the current batch
+                    var batch = validationReader.GetBatch(batchSize);
+                    var featuresBatch = batch[validationReader.StreamInfo("features")];
+                    var labelsBatch = batch[validationReader.StreamInfo("labels")];
+                    result += evaluator.TestBatch(
+                        new[] {
+                            (features, featuresBatch),
+                            (labels,  labelsBatch)
+                        }
+                    );
+                    sampleCount += (int)featuresBatch.numberOfSamples;
+                    batchCount++;
+                }
+                accuracy = 1 - result / batchCount;
+                lines[1].Add(accuracy);
+                Console.WriteLine($"validation accuracy: {accuracy}");
+            }
+
+            // plot the training and validation curves
+            var wpfApp = new System.Windows.Application();
+            wpfApp.Run(new PlotWindow(lines));
 
             Console.ReadLine();
         }

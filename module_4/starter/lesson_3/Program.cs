@@ -131,11 +131,20 @@ namespace ml_csharp_lesson3
             var features = NetUtil.Var(new int[] { imageHeight, imageWidth, numChannels }, DataType.Float);
             var labels = NetUtil.Var(new int[] { 2 }, DataType.Float);
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // download the VGG16 model from the internet
+            if (!DataUtil.VGG16.IsDownloaded)
+            {
+                DataUtil.VGG16.Download();
+            }
 
-            CNTK.Function network = null; // fix this line!
+            // build the network
+            var network = features
+                .MultiplyBy<float>(1.0f / 255.0f)  // divide all pixels by 255
+                .VGG16(allowBlock5Finetuning: true)
+                .Dense(256, CNTKLib.ReLU)
+                .Dropout(0.5)
+                .Dense(2, CNTKLib.Softmax)
+                .ToNetwork();
 
             // print the network to the console
             Console.WriteLine("Neural Network architecture: ");

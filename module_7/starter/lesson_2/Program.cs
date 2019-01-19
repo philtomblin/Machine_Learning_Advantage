@@ -94,11 +94,15 @@ namespace ml_csharp_lesson2
         /// <returns>The completed model to use.</returns>
         protected override CNTK.Function CreateModel(CNTK.Variable features)
         {
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
-
-            return null; // remove this when done!
+            int numberOfClasses = 10000;
+            int embeddingDimension = 32;
+            int lstmUnits = 32;
+            return features
+                .OneHotOp(numberOfClasses, true)
+                .Embedding(embeddingDimension)
+                .LSTM(lstmUnits, lstmUnits)
+                .Dense(1, CNTKLib.Sigmoid)
+                .ToNetwork();
         }
     }
 
@@ -135,9 +139,23 @@ namespace ml_csharp_lesson2
             var validationFeatures = trainingPartitionX.Take(pivot).ToArray();
             var validationLabels = trainingPartitionY.Take(pivot).ToArray();
 
-            // ******************
-            // ADD YOUR CODE HERE
-            // ******************
+            // set up a new training engine
+            var engine = new MyTrainingEngine()
+            {
+                NumberOfEpochs = 10,
+                BatchSize = 128,
+                SequenceLength = 500
+            };
+
+            // load the data into the engine
+            engine.SetData(trainingFeatures, trainingLabels, validationFeatures, validationLabels);
+
+            // start the training
+            engine.Train();
+
+            // plot the training and validation curves
+            var app = new System.Windows.Application();
+            app.Run(new Plot(engine.TrainingCurves));
 
             Console.ReadLine();
         }
